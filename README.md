@@ -181,7 +181,7 @@ Then point your client at the local copy with absolute paths (find them with `wh
 
 ## Tools
 
-The server exposes these 30 tools.
+The server exposes these 31 tools.
 
 | Tool | Description |
 |------|-------------|
@@ -212,6 +212,7 @@ The server exposes these 30 tools.
 | `create_manual_account` | Create a manually tracked account |
 | `update_account_balance` | Set a manual account's balance |
 | `refresh_accounts` | Trigger account data refresh |
+| `refresh_code` | Pull the latest deployed code and restart into it (HTTP deployment) |
 | `get_spending_summary` | Spending aggregated by category, account, or month |
 | `get_complete_financial_overview` | Compact account, transaction, budget, and cashflow summaries; full sections opt-in |
 | `analyze_spending_patterns` | Monthly trends and forecasts, with compact budgets and explicit upstream errors |
