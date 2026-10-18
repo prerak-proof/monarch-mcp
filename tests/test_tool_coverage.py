@@ -77,6 +77,10 @@ TOOL_CALLS: list[Any] = [
         lambda: server.create_manual_account(account_name="Savings", account_type="savings", balance=1000.0),
         id="create_manual_account",
     ),
+    pytest.param(
+        lambda: server.update_account_balance(account_id="acc_1", balance=1234.56),
+        id="update_account_balance",
+    ),
     pytest.param(lambda: server.get_spending_summary(), id="get_spending_summary"),
     pytest.param(lambda: server.refresh_accounts(), id="refresh_accounts"),
 ]

@@ -889,6 +889,12 @@ class CreateAccountResult(MMModel):
     account: JsonValue
 
 
+class UpdateAccountBalanceResult(MMModel):
+    account_id: str
+    account_name: str | None
+    balance: float | None
+
+
 class RefreshResult(MMModel):
     result: JsonValue
 
@@ -2542,6 +2548,41 @@ async def create_manual_account(account_name: str, account_type: str, balance: f
         return CreateAccountResult(account=result)
     except Exception as e:
         log.error("Failed to create manual account", error=str(e), name=account_name)
+        raise
+
+
+@mcp.tool(annotations=WRITE_IDEMPOTENT, title="Update Account Balance")
+@track_usage
+async def update_account_balance(account_id: str, balance: float) -> UpdateAccountBalanceResult:
+    """Set the balance of a manual account.
+
+    Args:
+        account_id: Account ID from get_accounts.
+        balance: New balance in dollars. For liability accounts, pass the
+            amount owed as a positive number, matching displayBalance.
+
+    Only manual accounts hold an editable balance; Monarch rejects a balance
+    update on a synced account. Returns the account's name and its new
+    display balance as confirmed by Monarch.
+    """
+    await ensure_authenticated()
+
+    try:
+        result = await api_call_with_retry("update_account", account_id=account_id, account_balance=balance)
+        result = convert_dates_to_strings(result)
+        payload = result.get("updateAccount") or {} if isinstance(result, dict) else {}
+        errors = payload.get("errors")
+        if errors:
+            raise ValueError(f"Monarch rejected the balance update: {errors}")
+        account = payload.get("account") or {}
+        log.info("Account balance updated", account_id=account_id, balance=balance)
+        return UpdateAccountBalanceResult(
+            account_id=account.get("id", account_id),
+            account_name=account.get("displayName"),
+            balance=account.get("displayBalance"),
+        )
+    except Exception as e:
+        log.error("Failed to update account balance", error=str(e), account_id=account_id)
         raise
 
 
