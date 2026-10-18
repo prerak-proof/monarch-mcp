@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added `update_account_balance`: set a manual account's balance via the library's `update_account` (`displayBalance`). Wraps Monarch's `Common_UpdateAccount` mutation; returns the account name and confirmed new balance, and surfaces payload errors instead of reporting success.
+
 ## 0.5.2 (2026-09-28)
 
 Thanks to [@prerak-proof](https://github.com/prerak-proof) for transaction details ([#23](https://github.com/jamiew/monarch-mcp/pull/23)).

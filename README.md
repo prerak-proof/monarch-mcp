@@ -181,7 +181,7 @@ Then point your client at the local copy with absolute paths (find them with `wh
 
 ## Tools
 
-The server exposes these 29 tools.
+The server exposes these 30 tools.
 
 | Tool | Description |
 |------|-------------|
@@ -210,6 +210,7 @@ The server exposes these 29 tools.
 | `update_recurring_transaction` | Change a merchant's recurring schedule |
 | `set_budget_amount` | Set a budget category amount |
 | `create_manual_account` | Create a manually tracked account |
+| `update_account_balance` | Set a manual account's balance |
 | `refresh_accounts` | Trigger account data refresh |
 | `get_spending_summary` | Spending aggregated by category, account, or month |
 | `get_complete_financial_overview` | Compact account, transaction, budget, and cashflow summaries; full sections opt-in |
