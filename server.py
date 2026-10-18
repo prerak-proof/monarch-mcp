@@ -4,6 +4,7 @@
 import asyncio
 import contextlib
 import functools
+import hashlib
 import io
 import json
 import logging
@@ -12,9 +13,12 @@ import re
 import signal
 import stat
 import sys
+import threading
 import time
+import urllib.request
 import uuid
 import warnings
+import zipfile
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta
 from enum import Enum
@@ -897,6 +901,12 @@ class UpdateAccountBalanceResult(MMModel):
 
 class RefreshResult(MMModel):
     result: JsonValue
+
+
+class RefreshCodeResult(MMModel):
+    status: str
+    detail: str | None = None
+    ref: str | None = None
 
 
 class Totals(BaseModel):
@@ -2721,6 +2731,80 @@ async def refresh_accounts() -> RefreshResult:
     except Exception as e:
         log.error("Failed to refresh accounts", error=str(e))
         raise
+
+
+def _fetch_deployed_server_source(source_url: str) -> bytes:
+    """Download the deployment archive at source_url and return its server.py bytes.
+
+    The HTTP deployment installs the server from a GitHub archive zip of the
+    configured ref (see MONARCH_SOURCE). Raises on network or archive errors.
+    """
+    request = urllib.request.Request(source_url, headers={"User-Agent": "monarch-mcp-refresh-code"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        archive = response.read()
+    with zipfile.ZipFile(io.BytesIO(archive)) as zf:
+        for name in zf.namelist():
+            parts = name.split("/")
+            if len(parts) == 2 and parts[1] == "server.py":
+                return zf.read(name)
+    raise ValueError("deployment archive contains no top-level server.py")
+
+
+def _check_code_update() -> RefreshCodeResult:
+    """Compare the running server.py against the configured deployment ref."""
+    source = os.getenv("MONARCH_SOURCE", "")
+    ref = os.getenv("MONARCH_REF", "") or None
+    if not source:
+        return RefreshCodeResult(
+            status="error",
+            detail="MONARCH_SOURCE is not set; refresh_code only works in the HTTP deployment",
+            ref=ref,
+        )
+    try:
+        remote = _fetch_deployed_server_source(source)
+    except Exception as e:
+        return RefreshCodeResult(status="error", detail=f"could not download the deployment archive: {e}", ref=ref)
+    try:
+        compile(remote, "server.py", "exec")
+    except SyntaxError as e:
+        return RefreshCodeResult(status="error", detail=f"downloaded server.py does not compile: {e}", ref=ref)
+    current = Path(__file__).read_bytes()
+    if hashlib.sha256(remote).digest() == hashlib.sha256(current).digest():
+        return RefreshCodeResult(status="already_current", ref=ref)
+    return RefreshCodeResult(status="updated", detail="newer code is available; restarting to pick it up", ref=ref)
+
+
+def _schedule_restart() -> None:
+    """Exit the process shortly; the container restart policy relaunches the
+    entrypoint, which installs and serves the refreshed code."""
+
+    def _exit() -> None:
+        # Delay so the tool response flushes before the process goes away.
+        time.sleep(2)
+        os._exit(0)
+
+    threading.Thread(target=_exit, daemon=True).start()
+
+
+@mcp.tool(annotations=WRITE_SIDE_EFFECT, title="Refresh Code")
+@track_usage
+async def refresh_code() -> RefreshCodeResult:
+    """Pull the latest deployed code and restart into it, if it changed.
+
+    Only works in the HTTP deployment, where the entrypoint installs the
+    server from the GitHub archive named by MONARCH_SOURCE (a branch or tag
+    of the deployment fork) with uv --refresh-package. Downloads that
+    archive, compile-checks its server.py, and compares it with the running
+    one. When they differ, returns "updated" and exits the process; the
+    container's restart policy re-runs the entrypoint, which installs and
+    serves the new code. Returns "already_current" when the running code
+    matches, or "error" when self-update is not configured.
+    """
+    result = await asyncio.to_thread(_check_code_update)
+    if result.status == "updated":
+        _schedule_restart()
+        log.info("Code refresh scheduled a restart", ref=result.ref)
+    return result
 
 
 @mcp.tool(annotations=READONLY, title="Complete Financial Overview")

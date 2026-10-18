@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added `refresh_code`: self-update for the HTTP deployment. Downloads the archive named by `MONARCH_SOURCE`, compile-checks and compares its `server.py` with the running one, and exits so the container restart policy relaunches the entrypoint on the new code. Returns `updated`, `already_current`, or `error`.
+
 - Added `update_account_balance`: set a manual account's balance via the library's `update_account` (`displayBalance`). Wraps Monarch's `Common_UpdateAccount` mutation; returns the account name and confirmed new balance, and surfaces payload errors instead of reporting success.
 
 ## 0.5.2 (2026-09-28)
